@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:15
+        env:
+          POSTGRES_USER: railway
+          POSTGRES_PASSWORD: railway
+          POSTGRES_DB: railway
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U railway"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Wait for PostgreSQL
+        run: docker run --network host --rm postgres:15 pg_isready -h localhost -p 5432 -U railway
+
+      - name: Run database migrations (if any)
+        # e.g. alembic upgrade head
+        run: echo "No migrations configured"
+
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          pytest --maxfail=1 --disable-warnings -q
+
+      - name: Build Docker image
+        run: docker build . -t railway-reservation:test
